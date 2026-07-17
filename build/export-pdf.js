@@ -15,8 +15,10 @@ const ROOT = path.join(__dirname, '..');
 const OUTPUT_PDF = path.join(ROOT, 'وثيقة-المشروع-الكاملة.pdf');
 
 // ترتيب الملفات كما يظهر في فهرس README.md
+// ملاحظة: تم استبعاد research-notes.md عمدًا من نسخة PDF التقديمية (تبقى متاحة
+// فقط في مستودع GitHub للفريق الداخلي)، لأنها وثيقة تحقّق بحثي داخلي (مصادر،
+// فجوات معلوماتية) لا تخص جمهور العرض النهائي وقد تُحدث لبسًا لديهم.
 const FILES_ORDER = [
-  { file: 'research-notes.md', titleFallback: 'ملخص البحث والمصادر' },
   { file: '01-creative-concept.md', titleFallback: 'الفكرة الإبداعية' },
   { file: '02-story-structure.md', titleFallback: 'البنية الدرامية والمدة الزمنية' },
   { file: '03-script.md', titleFallback: 'السكريبت الكامل' },
@@ -61,9 +63,43 @@ function fixMarkedQuoteEntities(html) {
   return html.replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
+// خريطة اسم الملف ← عنوانه المقروء، تُستخدم لتحويل أي رابط ماركداون داخلي
+// من صيغة "[`file.md`](./file.md)" إلى اسم قسم مفهوم بدون اسم ملف تقني
+const TITLE_BY_FILENAME = Object.fromEntries(
+  FILES_ORDER.map((f) => [f.file, f.titleFallback])
+);
+
+/**
+ * تنظيف الإحالات الداخلية بين الملفات (مثل "راجع [`09-technical-specs.md`](...)")
+ * قبل تحويل النص لـ HTML، لأن اسم الملف التقني لا يعني شيئًا لقارئ خارجي لا
+ * يملك وصول إلى مستودع GitHub:
+ *
+ * 1) أي رابط لملف research-notes.md (المستبعد من نسخة PDF بالكامل) يُحذف مع
+ *    حرف الجر "في" الذي يسبقه مباشرة، لأن الجملة تبقى سليمة نحويًا بدونه.
+ * 2) أي رابط لملف آخر ضمن هذه الوثيقة يتحول لاسم القسم بصيغة «القسم»
+ *    بدون أي بناء رابط أو اسم ملف ظاهر.
+ */
+function stripInternalFileReferences(rawMarkdown) {
+  let text = rawMarkdown;
+
+  // 1) إزالة الإحالة لملف research-notes.md مع حرف الجر السابق لها
+  text = text.replace(/\s*في\s*\[`research-notes\.md`\]\(\.\/research-notes\.md\)/g, '');
+  // احتياط: أي صيغة أخرى لرابط research-notes.md لم تُغطَّ بالنمط أعلاه
+  text = text.replace(/\[`research-notes\.md`\]\(\.\/research-notes\.md\)/g, 'وثيقة التحقق البحثي الداخلية');
+
+  // 2) تحويل أي رابط ماركداون داخلي آخر لاسم قسم مقروء
+  text = text.replace(/\[`([\w\-]+\.md)`\]\(\.\/[\w\-]+\.md\)/g, (match, filename) => {
+    const title = TITLE_BY_FILENAME[filename];
+    return title ? `«${title}»` : 'القسم المرتبط';
+  });
+
+  return text;
+}
+
 function mdFileToHtml(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
-  const html = marked.parse(raw, { mangle: false, headerIds: true });
+  const cleaned = stripInternalFileReferences(raw);
+  const html = marked.parse(cleaned, { mangle: false, headerIds: true });
   const fixed = fixMarkedQuoteEntities(html);
   return isolateLatinRuns(fixed);
 }
@@ -84,7 +120,8 @@ function buildCoverPageHtml() {
     </table>
     <div class="cover-footer">
       <p>تم إعداد هذه الوثيقة بواسطة Kiro — مساعد الذكاء الاصطناعي للتطوير</p>
-      <p class="cover-warning">⚠️ راجع "ملخص البحث والمصادر" لكل نقطة معلَّمة [افتراض قابل للتعديل] قبل التنفيذ الفعلي</p>
+      <p class="cover-warning">⚠️ راجع أي نقطة معلَّمة [افتراض قابل للتعديل] مع رئيس القسم قبل التنفيذ الفعلي</p>
+      <p class="cover-copyright">© <span class="ltr-isolate" dir="ltr">MACAL EMPIRE</span> — جميع الحقوق محفوظة</p>
     </div>
   </section>
   <div class="page-break"></div>
@@ -234,6 +271,37 @@ function buildFullHtml(bodyHtml) {
     color: #ffcf5c;
     opacity: 1;
     font-weight: 700;
+  }
+  .cover-copyright {
+    margin-top: 18px;
+    color: #ffffff;
+    opacity: 0.6;
+    font-size: 10.5px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== العلامة المائية (تظهر على كل صفحة) ===== */
+  .watermark-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .watermark-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    white-space: nowrap;
+    font-size: 60px;
+    font-weight: 800;
+    color: rgba(22, 50, 79, 0.06);
+    letter-spacing: 6px;
+    font-family: 'Cairo', sans-serif;
   }
 
   /* ===== الفهرس ===== */
@@ -403,6 +471,9 @@ function buildFullHtml(bodyHtml) {
 </style>
 </head>
 <body>
+<div class="watermark-layer">
+  <div class="watermark-text">MACAL EMPIRE</div>
+</div>
 ${bodyHtml}
 </body>
 </html>
@@ -449,7 +520,9 @@ async function main() {
     displayHeaderFooter: true,
     headerTemplate: `<div></div>`,
     footerTemplate: `
-      <div style="width:100%; font-size:9px; color:#888; direction:rtl; text-align:center; font-family: Cairo, Tajawal, sans-serif;">
+      <div dir="rtl" style="width:100%; font-size:8.5px; color:#999; direction:rtl; text-align:center; font-family: Cairo, Tajawal, sans-serif; padding:0 14mm;">
+        <span>&#169; MACAL EMPIRE &mdash; جميع الحقوق محفوظة</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
         <span class="pageNumber"></span> / <span class="totalPages"></span>
       </div>
     `,
