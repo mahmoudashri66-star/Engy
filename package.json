@@ -1,0 +1,21 @@
+{
+  "name": "engy",
+  "version": "1.0.0",
+  "description": "مشروع إنتاج فيديو سينمائي وثائقي (Documentary Storytelling) لتعريف طلاب الثانوي العامة وأولياء أمورهم ببرنامج الإعلام الرقمي، من الفكرة الإبداعية لحد التسليم النهائي.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://us-east-1.gateway.connections.autonomous-agents.kiro.dev/mahmoudashri66-star/Engy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "marked": "^18.0.6",
+    "puppeteer": "^25.3.0"
+  }
+}
